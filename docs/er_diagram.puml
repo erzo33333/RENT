@@ -1,0 +1,171 @@
+@startuml ER_Diagram
+!define primary_key(x) <b><u>x</u></b>
+!define foreign_key(x) <i><color:blue>x</color></i>
+
+title ER-диаграмма ИС учёта арендного жилья
+
+entity "users" as users {
+  primary_key(user_id) : BIGINT
+  --
+  role : ENUM('landlord','tenant')
+  email : VARCHAR UNIQUE
+  password_hash : VARCHAR
+  full_name : VARCHAR
+  phone : VARCHAR
+}
+
+entity "landlords (арендодатель)" as landlords {
+  primary_key(landlord_id) : BIGINT
+  --
+  user_id : BIGINT FK
+  company_name : VARCHAR
+  tax_id : VARCHAR
+  notes : TEXT
+}
+
+entity "tenants (арендатор)" as tenants {
+  primary_key(tenant_id) : BIGINT
+  --
+  user_id : BIGINT FK
+  passport_data : VARCHAR
+  notes : TEXT
+}
+
+entity "flats (квартира)" as flats {
+  primary_key(flat_id) : BIGINT
+  --
+  landlord_id : BIGINT FK
+  address : VARCHAR
+  area : DECIMAL
+  rooms : INT
+  floor : INT
+  cadastral_number : VARCHAR
+  status : ENUM('free','rented','repair','booked')
+  description : TEXT
+  created_at : TIMESTAMP
+}
+
+entity "property_media (фото, видео)" as pmedia {
+  primary_key(media_id) : BIGINT
+  --
+  flat_id : BIGINT FK
+  file_url : VARCHAR
+  media_type : ENUM('picture','video')
+}
+
+entity "contracts (подписанные документы)" as contracts {
+  primary_key(contract_id) : BIGINT
+  --
+  name : VARCHAR
+  doc_kind : ENUM('lease','act_handover','act_return','amendment')
+  file_url : VARCHAR
+  is_active : BOOLEAN
+  created_at : TIMESTAMP
+}
+
+entity "contract_templates (просто шаблоны)" as templates {
+  primary_key(template_id) : BIGINT
+  --
+  name : VARCHAR
+  type : ENUM('lease','act_handover','act_return','amendment')
+  file_url : VARCHAR
+  version : INT
+  created_at : TIMESTAMP
+}
+
+entity "leases (данные об аренде квартиры)" as leases {
+  primary_key(lease_id) : BIGINT
+  --
+  flat_id : BIGINT FK
+  tenant_id : BIGINT FK
+  contract_id : BIGINT FK
+  handover_act_id : BIGINT FK
+  return_act_id : BIGINT FK
+  start_date : DATE
+  end_date : DATE
+  rent_amount : DECIMAL
+  deposit_amount : DECIMAL
+  status : ENUM('active','finished','terminated')
+}
+
+entity "lease_amendments (доп соглашения)" as amendments {
+  primary_key(amendment_id) : BIGINT
+  --
+  lease_id : BIGINT FK
+  contract_id : BIGINT FK
+  change_date : DATE
+  description : TEXT
+}
+
+entity "payments (расходы по квартире)" as payments {
+  primary_key(payment_id) : BIGINT
+  --
+  lease_id : BIGINT FK
+  payment_date : DATE
+  amount : DECIMAL
+  type : ENUM('rent','deposit','deposit_return','repair','penalty','other')
+  ' если income то деньги получает арендодатель, если expanse то это его траты
+  direction : ENUM('income','expense')   
+  comment : TEXT
+}
+
+entity "meters (счетчики)" as meters {
+  primary_key(meter_id) : BIGINT
+  --
+  flat_id : BIGINT FK
+  meter_type : ENUM('electricity','water_cold','water_hot','gas')
+  serial_number : VARCHAR
+  verification_date : DATE
+}
+
+entity "meter_readings (показания счетчиков)" as readings {
+  primary_key(reading_id) : BIGINT
+  --
+  meter_id : BIGINT FK
+  reading_date : DATE
+  value : DECIMAL
+  photo_url : VARCHAR
+  entered_by : BIGINT FK
+}
+
+entity "requests (заявки от арендатора)" as requests {
+  primary_key(request_id) : BIGINT
+  --
+  flat_id : BIGINT FK
+  tenant_id : BIGINT FK
+  created_at : TIMESTAMP
+  description : TEXT
+  status : ENUM('new','in_progress','done','rejected')
+  resolved_at : TIMESTAMP
+}
+
+entity "notifications" as notifications {
+  primary_key(notification_id) : BIGINT
+  --
+  user_id : BIGINT FK
+  type : ENUM('payment','contract','meter','inspection')
+  message : TEXT
+  scheduled_at : TIMESTAMP
+  sent_at : TIMESTAMP
+  status : ENUM('pending','sent','failed')
+}
+
+' === Связи ===
+users ||--o| landlords
+users ||--o| tenants
+landlords ||--o{ flats : "владеет"
+flats ||--o{ pmedia : "имеет медиа"
+flats ||--o{ meters : "счётчик квартиры"
+flats ||--o{ leases : "сдаётся по договору"
+tenants ||--o{ leases : "арендует"
+leases ||--o| contracts : "подписанный договор"
+leases ||--o{ amendments : "имеет допсоглашения"
+leases ||--o{ payments : "платежи по квартире с данным договором"
+amendments ||--o| contracts : "подписанное допсоглашение"
+meters ||--o{ readings : "имеет показания"
+users ||--o{ readings : "вносит показания(юзер потому что показания могут внести оба)"
+flats ||--o{ requests : "имеет заявки"
+tenants ||--o{ requests : "подаёт заявки"
+users ||--o{ notifications : "получает уведомления"
+
+@enduml
